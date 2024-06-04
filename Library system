@@ -1,0 +1,160 @@
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.sql.*;
+
+public class BookDatabaseGUI {
+    private JFrame frame;
+    private JTable bookTable;
+    private DefaultTableModel tableModel;
+    private Connection connection;
+    private Statement statement;
+
+    public BookDatabaseGUI() {
+        frame = new JFrame("Book Database");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // Create the table model
+        tableModel = new DefaultTableModel();
+        tableModel.addColumn("Book ID");
+        tableModel.addColumn("Title");
+        tableModel.addColumn("Author");
+        tableModel.addColumn("Year");
+
+        // Create the table
+        bookTable = new JTable(tableModel);
+
+        // Create the panel for the form
+        JPanel formPanel = new JPanel();
+        formPanel.setLayout(new GridLayout(4, 2));
+
+        JLabel bookIdLabel = new JLabel("Book ID:");
+        JTextField bookIdField = new JTextField();
+        formPanel.add(bookIdLabel);
+        formPanel.add(bookIdField);
+
+        JLabel titleLabel = new JLabel("Title:");
+        JTextField titleField = new JTextField();
+        formPanel.add(titleLabel);
+        formPanel.add(titleField);
+
+        JLabel authorLabel = new JLabel("Author:");
+        JTextField authorField = new JTextField();
+        formPanel.add(authorLabel);
+        formPanel.add(authorField);
+
+        JLabel yearLabel = new JLabel("Year:");
+        JTextField yearField = new JTextField();
+        formPanel.add(yearLabel);
+        formPanel.add(yearField);
+
+        // Create the panel for the buttons
+        JPanel buttonPanel = new JPanel();
+        JButton addButton = new JButton("Add Book");
+        addButton.addActionListener(new AddBookListener());
+        JButton deleteButton = new JButton("Delete Book");
+        deleteButton.addActionListener(new DeleteBookListener());
+        JButton refreshButton = new JButton("Refresh");
+        refreshButton.addActionListener(new RefreshListener());
+        buttonPanel.add(addButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(refreshButton);
+
+        // Create the panel for the table and form
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BorderLayout());
+        mainPanel.add(new JScrollPane(bookTable), BorderLayout.CENTER);
+        mainPanel.add(formPanel, BorderLayout.NORTH);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set up the database connection
+        try {
+            Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
+            connection = DriverManager.getConnection("jdbc:ucanaccess://path_to_your_database_file.accdb");
+            statement = connection.createStatement();
+        } catch (ClassNotFoundException | SQLException e) {
+            JOptionPane.showMessageDialog(frame, "Error connecting to the database: " + e.getMessage());
+            return;
+        }
+
+        // Initialize the table with data from the database
+        try {
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM Books");
+            while (resultSet.next()) {
+                tableModel.addRow(new Object[]{resultSet.getInt("BookID"), resultSet.getString("Title"), resultSet.getString("Author"), resultSet.getInt("Year")});
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(frame, "Error retrieving data from the database: " + e.getMessage());
+        }
+
+        // Set up the frame
+        frame.add(mainPanel);
+        frame.pack();
+        frame.setVisible(true);
+    }
+
+    private class AddBookListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            try {
+                String bookId = bookIdField.getText();
+                String title = titleField.getText();
+                String author = authorField.getText();
+                int year = Integer.parseInt(yearField.getText());
+
+                // Insert the new book record into the database
+                statement.executeUpdate("INSERT INTO Books (BookID, Title, Author, Year) VALUES (" + bookId + ", '" + title + "', '" + author + "', " + year + ")");
+                tableModel.addRow(new Object[]{bookId, title, author, year});
+                bookIdField.setText("");
+                titleField.setText("");
+                authorField.setText("");
+                yearField.setText("");
+            } catch (SQLException | NumberFormatException ex) {
+                JOptionPane.showMessageDialog(frame, "Error adding book: " + ex.getMessage());
+            }
+        }
+    }
+
+    private class DeleteBookListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int selectedRow = bookTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                try {
+                    String bookId = tableModel.getValueAt(selectedRow, 0).toString();
+                    // Delete the selected book record from the database
+                    statement.executeUpdate("DELETE FROM Books WHERE BookID = " + bookId);
+                    tableModel.removeRow(selectedRow);
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(frame, "Error deleting book: " + ex.getMessage());
+                }
+            } else {
+                JOptionPane.showMessageDialog(frame, "Please select a book to delete.");
+            }
+        }
+    }
+
+    private class RefreshListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            try {
+                // Clear the table
+                tableModel.setRowCount(0);
+
+                // Retrieve and display all book records from the database
+                ResultSet resultSet = statement.executeQuery("SELECT * FROM Books");
+                while (resultSet.next()) {
+                    tableModel.addRow(new Object[]{resultSet.getInt("BookID"), resultSet.getString("Title"), resultSet.getString("Author"), resultSet.getInt("Year")});
+                }
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(frame, "Error refreshing book list: " + ex.getMessage());
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new BookDatabaseGUI());
+    }
+}
